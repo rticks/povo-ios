@@ -113,75 +113,136 @@ struct LoginScreen: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @StateObject private var vm = LoginViewModel()
+
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    Label(replacing == nil ? "アカウントを追加" : "アカウントを再認証", systemImage: "person.crop.circle.badge.plus")
-                        .font(.title2.weight(.semibold)).padding(.vertical, 12)
-                    Text("povo に登録したメールアドレスまたは電話番号でログインします。パスワードは保存せず、認証情報はこの端末の Keychain だけに保存します。")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                }
-                if vm.step == .identifier {
-                    Section("ログイン方法") {
-                        Picker("ログイン方法", selection: $vm.useSMS) {
-                            Text("メール").tag(false); Text("SMS").tag(true)
-                        }.pickerStyle(.segmented)
-                        if !vm.useSMS { emailField }
-                        else { phoneField }
-                        Button("認証コードを送信") { vm.start() }
-                            .disabled(vm.busy || (vm.useSMS ? vm.phone.nilIfBlank == nil : vm.email.nilIfBlank == nil))
-                            .accessibilityIdentifier("send-otp")
-                    }
-                } else if vm.step == .otp {
-                    Section(vm.pending.first == .email ? "メールの認証コード" : "SMSの認証コード") {
-                        if vm.pending.first == .email { emailField }
-                        else { phoneField }
-                        if vm.hasSentCode {
-                            TextField("認証コード", text: $vm.otp).keyboardType(.numberPad).textContentType(.oneTimeCode)
-                                .accessibilityIdentifier("otp-code")
-                            Button("認証して進む") { vm.submit(repository: model.repository, replacing: replacing) }
-                                .disabled(vm.busy || vm.otp.nilIfBlank == nil)
-                        }
-                        TimelineView(.periodic(from: .now, by: 1)) { context in
-                            let remaining = max(0, Int(ceil(vm.resendAfter.timeIntervalSince(context.date))))
-                            Button(remaining > 0 ? "再送信まで \(remaining) 秒" : (vm.hasSentCode ? "コードを再送信" : "コードを送信")) { vm.resend() }
-                                .disabled(vm.busy || remaining > 0)
-                        }
-                    } footer: { Text("povo が要求する認証を順に処理します。複数のコードが必要な場合も、最後まで同じ端末IDを使用します。") }
-                } else if vm.step == .pin {
-                    Section("追加のPIN認証") {
-                        SecureField("PIN", text: $vm.pin).keyboardType(.numberPad)
-                        Text("この追加認証は参照コアに実装されていますが、実アカウントでは未検証です。失敗する場合は公式アプリをご利用ください。")
-                            .font(.caption).foregroundStyle(.secondary)
-                        Button("PINを確認") { vm.submitPIN(repository: model.repository, replacing: replacing) }.disabled(vm.busy || vm.pin.isEmpty)
-                    }
-                }
-                if vm.busy { Section { HStack { ProgressView(); Text("povo と通信中…") } } }
-                if let error = vm.error { Section { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red) } }
-                if vm.step != .identifier {
-                    Section { Button("最初からやり直す") { vm.restart() }.disabled(vm.busy) }
-                }
-                Section { Text("非公式クライアントです。KDDI / povo / Circles.life とは関係ありません。ご自身が管理するアカウントだけを登録してください。")
-                        .font(.caption).foregroundStyle(.secondary) }
+                introductionSection
+                authenticationSection
+                statusSections
+                restartSection
+                disclaimerSection
             }
-            .navigationTitle("ログイン").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("閉じる") { vm.cancel(); dismiss() } } }
-            .onChange(of: vm.addedAccountID) { _, id in
-                guard let id else { return }
-                Task { await model.reload(); await model.refresh(id) }
-                dismiss()
+            .navigationTitle("ログイン")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("閉じる") { vm.cancel(); dismiss() }
+                }
             }
+            .onChange(of: vm.addedAccountID) { _, id in didAddAccount(id) }
             .onDisappear { vm.cancel() }
         }
     }
+
+    private var introductionSection: some View {
+        Section {
+            Label(replacing == nil ? "アカウントを追加" : "アカウントを再認証", systemImage: "person.crop.circle.badge.plus")
+                .font(.title2.weight(.semibold)).padding(.vertical, 12)
+            Text("povo に登録したメールアドレスまたは電話番号でログインします。パスワードは保存せず、認証情報はこの端末の Keychain だけに保存します。")
+                .font(.subheadline).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder private var authenticationSection: some View {
+        switch vm.step {
+        case .identifier: identifierSection
+        case .otp: otpSection
+        case .pin: pinSection
+        case .done: EmptyView()
+        }
+    }
+
+    private var identifierSection: some View {
+        Section("ログイン方法") {
+            Picker("ログイン方法", selection: $vm.useSMS) {
+                Text("メール").tag(false)
+                Text("SMS").tag(true)
+            }.pickerStyle(.segmented)
+            if vm.useSMS { phoneField } else { emailField }
+            Button("認証コードを送信") { vm.start() }
+                .disabled(vm.busy || (vm.useSMS ? vm.phone.nilIfBlank == nil : vm.email.nilIfBlank == nil))
+                .accessibilityIdentifier("send-otp")
+        }
+    }
+
+    private var otpSection: some View {
+        Section {
+            if vm.pending.first == .email { emailField } else { phoneField }
+            if vm.hasSentCode {
+                TextField("認証コード", text: $vm.otp)
+                    .keyboardType(.numberPad).textContentType(.oneTimeCode)
+                    .accessibilityIdentifier("otp-code")
+                Button("認証して進む") { vm.submit(repository: model.repository, replacing: replacing) }
+                    .disabled(vm.busy || vm.otp.nilIfBlank == nil)
+            }
+            resendButton
+        } header: {
+            Text(vm.pending.first == .email ? "メールの認証コード" : "SMSの認証コード")
+        } footer: {
+            Text("povo が要求する認証を順に処理します。複数のコードが必要な場合も、最後まで同じ端末IDを使用します。")
+        }
+    }
+
+    private var resendButton: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let remaining = max(0, Int(ceil(vm.resendAfter.timeIntervalSince(context.date))))
+            Button(resendTitle(remaining)) { vm.resend() }
+                .disabled(vm.busy || remaining > 0)
+        }
+    }
+
+    private func resendTitle(_ remaining: Int) -> String {
+        if remaining > 0 { return "再送信まで \(remaining) 秒" }
+        return vm.hasSentCode ? "コードを再送信" : "コードを送信"
+    }
+
+    private var pinSection: some View {
+        Section("追加のPIN認証") {
+            SecureField("PIN", text: $vm.pin).keyboardType(.numberPad)
+            Text("この追加認証は参照コアに実装されていますが、実アカウントでは未検証です。失敗する場合は公式アプリをご利用ください。")
+                .font(.caption).foregroundStyle(.secondary)
+            Button("PINを確認") { vm.submitPIN(repository: model.repository, replacing: replacing) }
+                .disabled(vm.busy || vm.pin.isEmpty)
+        }
+    }
+
+    @ViewBuilder private var statusSections: some View {
+        if vm.busy {
+            Section { HStack { ProgressView(); Text("povo と通信中…") } }
+        }
+        if let error = vm.error {
+            Section { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red) }
+        }
+    }
+
+    @ViewBuilder private var restartSection: some View {
+        if vm.step != .identifier {
+            Section { Button("最初からやり直す") { vm.restart() }.disabled(vm.busy) }
+        }
+    }
+
+    private var disclaimerSection: some View {
+        Section {
+            Text("非公式クライアントです。KDDI / povo / Circles.life とは関係ありません。ご自身が管理するアカウントだけを登録してください。")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
     private var emailField: some View {
         TextField("メールアドレス", text: $vm.email).keyboardType(.emailAddress).textContentType(.emailAddress)
             .textInputAutocapitalization(.never).autocorrectionDisabled().disabled(vm.busy)
             .accessibilityIdentifier("login-email")
     }
+
     private var phoneField: some View {
         TextField("電話番号", text: $vm.phone).keyboardType(.phonePad).textContentType(.telephoneNumber)
             .disabled(vm.busy).accessibilityIdentifier("login-phone")
+    }
+
+    private func didAddAccount(_ id: String?) {
+        guard let id else { return }
+        Task { await model.reload(); await model.refresh(id) }
+        dismiss()
     }
 }
