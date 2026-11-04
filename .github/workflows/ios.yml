@@ -7,6 +7,14 @@ on:
         required: true
         default: '0.1.0'
         type: string
+      runner:
+        description: 'Standard macOS runner (alternate pool if one is full)'
+        required: true
+        default: macos-26-intel
+        type: choice
+        options:
+          - macos-26-intel
+          - macos-15-intel
   push:
     branches: [main]
   pull_request:
@@ -28,8 +36,7 @@ jobs:
           swift --version
           swift test --package-path Packages/PovoKit
   build:
-    needs: shared-tests
-    runs-on: macos-15-intel
+    runs-on: ${{ inputs.runner || 'macos-26-intel' }}
     timeout-minutes: 60
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/build/rust
