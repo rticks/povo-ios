@@ -1,0 +1,76 @@
+name: Build unsigned iOS IPA
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'App version (major.minor.patch)'
+        required: true
+        default: '0.1.0'
+        type: string
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/build/rust
+      VERSION: ${{ inputs.version || '0.1.0' }}
+      BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          command -v xcodegen >/dev/null || brew install xcodegen
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          xcodebuild -version
+          swift --version
+          rustc --version
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            build/rust
+          key: native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('vendor/povo-core/Cargo.lock', 'vendor/povo-core/**/*.rs', 'scripts/build-native.sh') }}
+          restore-keys: |
+            native-${{ runner.os }}-${{ runner.arch }}-
+      - name: Test shared Swift logic and Android fixtures
+        run: swift test --package-path Packages/PovoKit
+      - name: Test vendored Rust core
+        run: cargo test --locked --manifest-path vendor/povo-core/Cargo.toml -p povo-core
+      - name: Build Rust device and universal simulator XCFramework
+        run: bash scripts/build-native.sh
+      - name: Build and verify unsigned ARM64 IPA
+        run: bash scripts/build-unsigned.sh
+      - name: Run native, repository and UI tests on iPhone simulator
+        run: bash scripts/test-ios.sh
+      - name: Upload unsigned IPA, checksum and verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: povo-ios-unsigned
+          path: |
+            artifacts/*.ipa
+            artifacts/*.sha256
+            artifacts/*.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload test evidence and build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-evidence
+          path: |
+            artifacts/screenshots/
+            build/*.log
+            build/TestResults.xcresult/
+          if-no-files-found: warn
+          retention-days: 7

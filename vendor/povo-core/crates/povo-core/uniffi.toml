@@ -1,0 +1,16 @@
+# Kotlin bindings are only generated for Android in this project (Windows
+# hosts use the C#/Python/C surfaces, iOS uses Swift), so the Android
+# switches are on by default.
+#
+# Without `android_cleaner`, the generated Kotlin references
+# `java.lang.ref.Cleaner` directly. That is API 33+, so a `minSdk 26`
+# project fails lint's `NewApi` check on it — the runtime path does fall
+# back correctly, but the reference itself remains.
+#
+# `uniffi-bindgen` picks this file up from the crate automatically, including
+# in `--library` mode. A plain-JVM (non-Android) Kotlin consumer must
+# override it with `--config <own.toml>`, since the Android cleaner
+# references `android.*`. See BUILDING.md.
+[bindings.kotlin]
+android = true
+android_cleaner = true

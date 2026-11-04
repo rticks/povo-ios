@@ -1,0 +1,131 @@
+{
+  "recorded_at": "2026-11-04T15:31:20.332Z",
+  "core": {
+    "url": "https://github.com/uirooong/povo-core",
+    "commit": "d516db1147732124718630bedaadf5529e85b00a",
+    "local_changes": [
+      {
+        "file": "crates/povo-core/src/client.rs",
+        "sha256": "ff01c32a4853ebf2406e80c864e3be46e84e33d5917865d67ac36f0c2779e990"
+      },
+      {
+        "file": "crates/povo-core/src/error.rs",
+        "sha256": "f11a0776282b654db3367d6eeefd8cfbbeb83bf5f9b1097a7687e63423ae330f"
+      },
+      {
+        "file": "crates/povo-core/src/models.rs",
+        "sha256": "9266a5fd554760569abe0ab1c277fb6a86bb7f570a1d1af013cda14a4eca82f0"
+      },
+      {
+        "file": "docs/API-REFERENCE.md",
+        "sha256": "ee913fc38971e65461f4e5d1779da073cc47769c0b1240db88ac6c50dab41b25"
+      }
+    ]
+  },
+  "android": {
+    "url": "https://github.com/uirooong/povo-android",
+    "commit": "e2364967fe621efcc653762d4470115466cebd44",
+    "local_changes": [
+      {
+        "file": "app/src/main/kotlin/jp/povo/manager/data/AccountRepository.kt",
+        "sha256": "42de344ede67f47c9252fb8198f9aeef6e196e4c0b1506e987046e699dfe322f"
+      },
+      {
+        "file": "core-povo/src/main/kotlin/jp/povo/manager/core/SessionStore.kt",
+        "sha256": "f9dc93e6a436af2897d8ac2fbd34af617a99942c7b9ccdb54d55033519e0e3a7"
+      },
+      {
+        "file": "core-povo/src/test/kotlin/jp/povo/manager/core/SessionStoreTest.kt",
+        "sha256": "02966475e575b80dbb2be94457474bb074265082d3649082bd5b0203b2bab23e"
+      }
+    ]
+  },
+  "vendored_core": [
+    {
+      "file": "vendor/povo-core/BUILDING.md",
+      "sha256": "f60e775071e029e4dd7d098375c13706b67beb4b25ccc4282f3c9bcf13411cbc"
+    },
+    {
+      "file": "vendor/povo-core/Cargo.lock",
+      "sha256": "3d0f32258f880fcce02cf7752a2ba526e1cf98ec62fb7d4c9089a1d2294cfa77"
+    },
+    {
+      "file": "vendor/povo-core/Cargo.toml",
+      "sha256": "1fbf3b722be82b1b432f9e34c86929d81ac9eddfaab651cfccfa78881da53332"
+    },
+    {
+      "file": "vendor/povo-core/crates/povo-core/Cargo.toml",
+      "sha256": "9258d598d8407f92a6ba2b32851af42e6649e3832aa0c7a3d0bc41e35c43f5dd"
+    },
+    {
+      "file": "vendor/povo-core/crates/povo-core/src/client.rs",
+      "sha256": "ff01c32a4853ebf2406e80c864e3be46e84e33d5917865d67ac36f0c2779e990"
+    },
+    {
+      "file": "vendor/povo-core/crates/povo-core/src/error.rs",
+      "sha256": "f11a0776282b654db3367d6eeefd8cfbbeb83bf5f9b1097a7687e63423ae330f"
+    },
+    {
+      "file": "vendor/povo-core/crates/povo-core/src/jwt.rs",
+      "sha256": "6c21a6788c60742e84caf27d94a00257e75e750756420d473b9cbabfa4410d82"
+    },
+    {
+      "file": "vendor/povo-core/crates/povo-core/src/lib.rs",
+      "sha256": "3e691d6bd40f4daf01644d31e34054646aae9f233be2f4733a1d7664ad8a2864"
+    },
+    {
+      "file": "vendor/povo-core/crates/povo-core/src/models.rs",
+      "sha256": "9266a5fd554760569abe0ab1c277fb6a86bb7f570a1d1af013cda14a4eca82f0"
+    },
+    {
+      "file": "vendor/povo-core/crates/povo-core/src/url.rs",
+      "sha256": "3fc0678dd0b45c86bb3ceebf705bb85b2235337c0424fd693b54f870f3e105a2"
+    },
+    {
+      "file": "vendor/povo-core/crates/povo-core/uniffi-bindgen.rs",
+      "sha256": "55a5501b6239f6f219489db85de7ead6d2bf0c927f4fa1cfd674779e33d59c31"
+    },
+    {
+      "file": "vendor/povo-core/crates/povo-core/uniffi.toml",
+      "sha256": "58593ae5adf37ccd2f34206a3ea71d0d93ff4b6390b52941c18ab40984defcb8"
+    },
+    {
+      "file": "vendor/povo-core/docs/API-REFERENCE.md",
+      "sha256": "ee913fc38971e65461f4e5d1779da073cc47769c0b1240db88ac6c50dab41b25"
+    },
+    {
+      "file": "vendor/povo-core/README.md",
+      "sha256": "471e087b3a7926778aba18105c4a1a9b12e8d07eadddd7b159cc6e367f6baaca"
+    }
+  ],
+  "fixtures": [
+    {
+      "file": "Packages/PovoKit/Tests/PovoKitTests/Fixtures/account-referral-code-get.json",
+      "sha256": "13ef75fc64cdba172d9c97522ec58a9eb8cd928aeb36eec19f54c2c9df4bedbf"
+    },
+    {
+      "file": "Packages/PovoKit/Tests/PovoKitTests/Fixtures/account-usage-plan-get.json",
+      "sha256": "e20d5372c3aa323b607173227c18bc982c3d69ba4d3fde491c138c7f320c841a"
+    },
+    {
+      "file": "Packages/PovoKit/Tests/PovoKitTests/Fixtures/account-usage-plan-get.plan-account.json",
+      "sha256": "3f241ca44775f9b2e7fece375180e4c84bd87542c6311e0bdfe5239bf337938f"
+    },
+    {
+      "file": "Packages/PovoKit/Tests/PovoKitTests/Fixtures/layout-bills-info.json",
+      "sha256": "6ed938bc1a2101f05174b4da7ee63571d8aed38f8cd946ef437c6314c58758c1"
+    },
+    {
+      "file": "Packages/PovoKit/Tests/PovoKitTests/Fixtures/layout-bills-info.plan-account.json",
+      "sha256": "9085204e7e0e136daa8fda40c11dcc277d844c7c35883e2a499997b571de337f"
+    },
+    {
+      "file": "Packages/PovoKit/Tests/PovoKitTests/Fixtures/quilt-order-history.json",
+      "sha256": "b76358c11e7bfaf1e20257aa11bd3b876376a7bab6ccc251697c96daf681367a"
+    },
+    {
+      "file": "Packages/PovoKit/Tests/PovoKitTests/Fixtures/quilt-user-plan-details-v2.json",
+      "sha256": "4f08d8fd2853f82c8bc970b4a60d090c4e0fd4d37dde7fb1977c47383715f129"
+    }
+  ]
+}

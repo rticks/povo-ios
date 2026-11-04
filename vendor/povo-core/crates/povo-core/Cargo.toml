@@ -1,0 +1,23 @@
+[package]
+name = "povo-core"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Unofficial cross-platform client library for the povo2.0 (au/KDDI) account API. Reverse-engineered; unaffiliated with KDDI/povo/Circles.life."
+
+[lib]
+crate-type = ["cdylib", "staticlib", "lib"]
+name = "povo_core"
+
+[dependencies]
+uniffi = { version = "0.28", features = ["cli"] }
+ureq = { version = "2", default-features = false, features = ["tls", "gzip", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+base64 = "0.22"
+rand = "0.8"
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"

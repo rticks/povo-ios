@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.png binary
+# Preserve the exact upstream snapshot/fixtures represented by provenance hashes.
+vendor/** -text whitespace=cr-at-eol
+Packages/PovoKit/Tests/PovoKitTests/Fixtures/** -text whitespace=cr-at-eol

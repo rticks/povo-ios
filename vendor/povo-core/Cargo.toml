@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = ["crates/povo-core"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+# `strip` also removes the UNIFFI_META_* symbols uniffi-bindgen reads in
+# `--library` mode: handing it a stripped artifact writes no bindings and
+# still exits 0. Generate bindings from an unstripped build — see BUILDING.md.
+strip = true
+# Deliberately no `panic = "abort"`: uniffi's FFI scaffolding catches panics
+# at the boundary and converts them into errors the host can handle.
