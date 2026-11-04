@@ -10,7 +10,7 @@ BUILD_NUMBER="${BUILD_NUMBER:-1}"
 xcodegen generate
 mkdir -p artifacts build/package/Payload
 xcodebuild -project Povo.xcodeproj -scheme Povo -configuration Release \
-  -destination 'generic/platform=iOS' -derivedDataPath build/DerivedData -enableCodeCoverage NO \
+  -destination 'generic/platform=iOS' -derivedDataPath build/DerivedData CLANG_ENABLE_CODE_COVERAGE=NO \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' \
   MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
   build | tee build/device-build.log
