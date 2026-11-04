@@ -17,6 +17,7 @@ final class AppModel: ObservableObject {
     @Published var selectedAccountID: String?
     @Published var widgetSharingAvailable = false
     private var started = false
+    private var pendingOpenAccountID: String?
 
     init(repository: AccountRepository? = nil, preferences: PreferencesStore? = nil, isUITesting: Bool = false) {
         // Default cache storage is recoverable and does not touch Keychain until
@@ -35,8 +36,12 @@ final class AppModel: ObservableObject {
         }
     }
     func reload() async {
-        do { accounts = try await repository.snapshot() }
-        catch { message = AppFailure.describing(error).message }
+        do {
+            accounts = try await repository.snapshot()
+            if let id = pendingOpenAccountID, accounts.contains(where: { $0.id == id }) {
+                pendingOpenAccountID = nil; selectedAccountID = id
+            }
+        } catch { message = AppFailure.describing(error).message }
         await updateIntegrations()
     }
     @discardableResult
@@ -92,8 +97,10 @@ final class AppModel: ObservableObject {
     }
     func open(_ url: URL) {
         guard url.scheme == "povo-manager", url.host == "account" else { return }
-        if let id = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "id" })?.value,
-           accounts.contains(where: { $0.id == id }) { selectedAccountID = id }
+        if let id = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "id" })?.value {
+            if accounts.contains(where: { $0.id == id }) { selectedAccountID = id }
+            else { pendingOpenAccountID = id }
+        }
     }
     private func updateIntegrations() async {
         guard !isUITesting else { return }

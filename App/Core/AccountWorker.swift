@@ -19,6 +19,14 @@ struct RefreshPayload: Sendable {
     var warnings: [AppFailure]
 }
 
+private final class BlockingCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+    var isCancelled: Bool { lock.lock(); defer { lock.unlock() }; return cancelled }
+    func cancel() { lock.lock(); defer { lock.unlock() }; cancelled = true }
+    func check() throws { if isCancelled { throw CancellationError() } }
+}
+
 /// @unchecked is limited to queue confinement: service/session are never touched
 /// outside this private serial queue. Accounts have separate queues and objects.
 final class AccountWorker: @unchecked Sendable {
@@ -33,29 +41,41 @@ final class AccountWorker: @unchecked Sendable {
         service = factory(session)
     }
     func perform<Value: Sendable>(_ operation: @escaping @Sendable (any AccountService) throws -> Value) async -> WorkerReply<Value> {
-        await withCheckedContinuation { continuation in
-            queue.async { [self] in
-                let startingToken = session.authToken
-                let result: Result<Value, AppFailure>
-                do {
-                    if JWT.isExpired(service.authToken ?? session.authToken) { _ = try service.refreshToken() }
-                    result = .success(try operation(service))
-                } catch { result = .failure(.describing(error)) }
-                // Even if a later endpoint fails, do not lose a successful token
-                // renewal. The repository uses a generation/token CAS to commit.
-                session.authToken = service.authToken ?? session.authToken
-                session.sin = service.sin ?? session.sin
-                continuation.resume(returning: WorkerReply(session: session, startingToken: startingToken, result: result))
+        await performCancellable { service, _ in try operation(service) }
+    }
+    private func performCancellable<Value: Sendable>(_ operation: @escaping @Sendable (any AccountService, BlockingCancellation) throws -> Value) async -> WorkerReply<Value> {
+        let cancellation = BlockingCancellation()
+        return await withTaskCancellationHandler(operation: {
+            await withCheckedContinuation { continuation in
+                queue.async { [self] in
+                    let startingToken = session.authToken
+                    let result: Result<Value, AppFailure>
+                    do {
+                        try cancellation.check()
+                        if JWT.isExpired(service.authToken ?? session.authToken) { _ = try service.refreshToken() }
+                        try cancellation.check()
+                        result = .success(try operation(service, cancellation))
+                    } catch { result = .failure(.describing(error)) }
+                    // A current blocking HTTP request has a bounded core timeout.
+                    // Cancellation prevents the next endpoint, not an unsafe
+                    // destruction of a Rust client still executing in FFI.
+                    session.authToken = service.authToken ?? session.authToken
+                    session.sin = service.sin ?? session.sin
+                    continuation.resume(returning: WorkerReply(session: session, startingToken: startingToken, result: result))
+                }
             }
-        }
+        }, onCancel: { cancellation.cancel() })
     }
     func refresh(includeBills: Bool) async -> WorkerReply<RefreshPayload> {
-        await perform { service in
+        await performCancellable { service, cancellation in
             let profile = try service.profile() // discovers SIN before any account GET
+            try cancellation.check()
             let raw = try service.usageJSON()
             guard let usage = UsageParser.parse(raw) else { throw AppFailure("残量の形式が変わったため更新できません。最後の取得値を保持しています。") }
             var warnings: [AppFailure] = []
             func optional<T>(_ operation: () throws -> T?) -> T? {
+                guard !cancellation.isCancelled,
+                      !warnings.contains(where: { $0.needsLogin || ($0.blockedUntil.map { $0 > Date() } ?? false) }) else { return nil }
                 do {
                     guard let value = try operation() else {
                         warnings.append(AppFailure("一部の応答を読み取れませんでした。前回の情報を保持しています。"))
@@ -68,6 +88,7 @@ final class AccountWorker: @unchecked Sendable {
             let bills = includeBills ? optional { BillsParser.parse(try service.billsJSON()) } : nil
             let purchases = includeBills ? optional { QuiltParser.purchases(try service.quilt("order-history")) } : nil
             let profileInfo = includeBills ? optional { QuiltParser.profile(try service.quilt("profile")) } : nil
+            try cancellation.check()
             return RefreshPayload(profile: profile, usage: usage, rawUsage: raw, bills: bills, toppings: toppings,
                                   purchases: purchases, profileInfo: profileInfo, billsAttempted: includeBills, warnings: warnings)
         }

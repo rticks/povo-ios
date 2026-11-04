@@ -13,6 +13,7 @@ final class SuspensionNotifier {
         let settings = preferences.value
         let pending = await center.pendingNotificationRequests()
         let ours = pending.filter { $0.identifier.hasPrefix(prefix) }
+        let delivered = await center.deliveredNotifications()
         let permission = await center.notificationSettings().authorizationStatus
         guard settings.suspensionEnabled, settings.notifySuspension,
               [.authorized, .provisional, .ephemeral].contains(permission) else {
@@ -25,12 +26,16 @@ final class SuspensionNotifier {
             let id = prefix + account.id
             wanted.insert(id)
             if anchor.notifiedFor == forecast.suspendsOn.description { continue }
+            if delivered.contains(where: { $0.request.identifier == id && $0.request.content.userInfo["suspendsOn"] as? String == forecast.suspendsOn.description }) {
+                try preferences.markNotified(account.id, date: forecast.suspendsOn.description)
+                continue
+            }
             let warnDay = forecast.suspendsOn.adding(days: -settings.notifyDays)
             let content = UNMutableNotificationContent()
             content.title = "povo 利用停止の予定を確認してください"
             content.body = "\(account.label)：\(forecast.suspendsOn) 以降、順次利用停止の可能性があります。起算日は手入力した内容に基づきます。"
             content.sound = .default
-            content.userInfo = ["accountID": account.id]
+            content.userInfo = ["accountID": account.id, "suspendsOn": forecast.suspendsOn.description]
             let trigger: UNNotificationTrigger
             let immediate = warnDay <= today
             if immediate { trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false) }

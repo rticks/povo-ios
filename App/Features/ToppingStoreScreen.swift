@@ -94,16 +94,23 @@ final class ToppingStoreViewModel: ObservableObject {
         do { sections = try await repository.catalogue(accountID) }
         catch { self.error = AppFailure.describing(error).message }
     }
-    func confirm(accountID: String, model: AppModel) {
-        guard !placing, challenge == nil, let product = confirming, product.price?.nilIfBlank != nil else { return }
+    func confirm(_ product: ToppingProduct, accountID: String, model: AppModel) {
+        guard !placing, challenge == nil, product.price?.nilIfBlank != nil else { return }
         confirming = nil; placing = true; result = nil; error = nil
         Task {
             defer { placing = false }
             do {
+                let latest = try await model.repository.catalogue(accountID)
+                guard let current = latest.flatMap(\.products).first(where: { $0.id == product.id }),
+                      current.price == product.price, current.name == product.name else {
+                    sections = latest
+                    self.error = "価格または商品情報が変わりました。最新の内容を選び直してください。購入リクエストは送信していません。"
+                    return
+                }
                 let order = try await model.repository.order(accountID, sku: product.id)
                 if order.needsChallenge { challenge = PaymentChallenge(product: product, order: order) }
                 else {
-                    result = "購入が受け付けられました。残量と購入履歴を更新しました。"
+                    result = "購入が受け付けられました。反映状況は残量・購入履歴で確認してください。"
                     await model.refresh(accountID)
                 }
             } catch {
@@ -171,11 +178,11 @@ struct ToppingStoreScreen: View {
         .navigationTitle("トッピングストア").navigationBarTitleDisplayMode(.inline)
         .task { await vm.load(accountID: accountID, repository: model.repository) }
         .refreshable { await vm.load(accountID: accountID, repository: model.repository) }
-        .alert("トッピングを購入しますか？", isPresented: Binding(get: { vm.confirming != nil }, set: { if !$0 { vm.confirming = nil } })) {
-            Button("\(vm.confirming?.price ?? "")で購入") { vm.confirm(accountID: accountID, model: model) }
+        .alert("トッピングを購入しますか？", isPresented: Binding(get: { vm.confirming != nil }, set: { if !$0 { vm.confirming = nil } }), presenting: vm.confirming) { product in
+            Button("\(product.price ?? "")で購入") { vm.confirm(product, accountID: accountID, model: model) }
             Button("やめる", role: .cancel) { vm.confirming = nil }
-        } message: {
-            Text("回線：\(label)\n\(vm.confirming?.name ?? "")\n\(vm.confirming?.price ?? "")\n\n確認すると実際の購入リクエストが送信されます。3DSが不要な場合は直ちに購入が成立します。")
+        } message: { product in
+            Text("回線：\(label)\n\(product.name)\n\(product.price ?? "")\n\n確認すると実際の購入リクエストが送信されます。3DSが不要な場合は直ちに購入が成立します。")
         }
         .sheet(item: $vm.challenge) { challenge in
             ThreeDSScreen(challenge: challenge, onReturn: { vm.returned(accountID: accountID, model: model) },

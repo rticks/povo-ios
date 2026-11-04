@@ -31,8 +31,13 @@ actor AccountRepository {
     private let factory: ServiceFactory
     private let limiter = NetworkLimiter()
     private var cache: AccountCache
+    private struct PendingRefresh {
+        var id: UUID
+        var task: Task<RefreshOutcome, Never>
+    }
     private var workers: [String: AccountWorker] = [:]
-    private var inFlight: [String: Task<RefreshOutcome, Never>] = [:]
+    private var inFlight: [String: PendingRefresh] = [:]
+    private var ordersInFlight = Set<String>()
 
     init(sessions: any SessionStorage = KeychainSessionStorage(), cache: any CacheStorage = FileCacheStorage(),
          factory: @escaping ServiceFactory = { NativePovoService(deviceID: $0.deviceID, token: $0.authToken, sin: $0.sin) }) throws {
@@ -63,7 +68,7 @@ actor AccountRepository {
         saved.removeAll { $0.accountID == id }; saved.append(session)
         try sessions.save(saved)
         workers.removeValue(forKey: id)
-        inFlight.removeValue(forKey: id)?.cancel()
+        inFlight.removeValue(forKey: id)?.task.cancel()
         var record = cache.accounts.first(where: { $0.id == id }) ?? AccountRecord(id: id, sortOrder: cache.accounts.count)
         record.profile = profile; record.lastError = nil; record.needsLogin = false; record.blockedUntil = nil
         put(record); try persistCache()
@@ -74,7 +79,7 @@ actor AccountRepository {
         var saved = try sessions.load(); saved.removeAll { $0.accountID == id }
         try sessions.save(saved) // credentials first; a late refresh cannot resurrect them
         workers.removeValue(forKey: id)
-        inFlight.removeValue(forKey: id)?.cancel()
+        inFlight.removeValue(forKey: id)?.task.cancel()
         cache.accounts.removeAll { $0.id == id }; try persistCache()
     }
 
@@ -91,19 +96,22 @@ actor AccountRepository {
     }
 
     func refreshAccount(_ id: String, policy: BillsPolicy = .always) async -> RefreshOutcome {
-        if let task = inFlight[id] { return await task.value }
+        if let existing = inFlight[id] { return await existing.task.value }
+        let requestID = UUID()
         let task = Task { await self.performRefresh(id, policy: policy) }
-        inFlight[id] = task
+        inFlight[id] = PendingRefresh(id: requestID, task: task)
         let outcome = await withTaskCancellationHandler(operation: { await task.value }, onCancel: { task.cancel() })
         // A re-login can replace the entry while this task is awaiting I/O.
-        // Only clear the old generation's task, never a newer task.
-        if let current = inFlight[id], current == task { inFlight.removeValue(forKey: id) }
+        // Only clear the old request, never a newer generation's task.
+        if inFlight[id]?.id == requestID { inFlight.removeValue(forKey: id) }
         return outcome
     }
 
     private func performRefresh(_ id: String, policy: BillsPolicy) async -> RefreshOutcome {
+        var expectedGeneration: UUID?
         do {
             let session = try session(id)
+            expectedGeneration = session.generation
             let stored = cache.accounts.first { $0.id == id }
             if case .ifStale = policy, stored?.needsLogin == true {
                 return RefreshOutcome(accountID: id, status: .needsLogin, message: stored?.lastError)
@@ -141,8 +149,11 @@ actor AccountRepository {
                 return RefreshOutcome(accountID: id, status: failure.needsLogin ? .needsLogin : .failed, message: failure.message)
             }
         } catch {
+            if let expectedGeneration, (try? session(id).generation) != expectedGeneration {
+                return RefreshOutcome(accountID: id, status: .superseded)
+            }
             let failure = AppFailure.describing(error)
-            try? markFailure(id, failure)
+            if !(error is CancellationError) { try? markFailure(id, failure) }
             return RefreshOutcome(accountID: id, status: failure.needsLogin ? .needsLogin : .failed, message: failure.message)
         }
     }
@@ -156,8 +167,10 @@ actor AccountRepository {
         }
     }
     func order(_ id: String, sku: String) async throws -> ToppingOrder {
+        guard ordersInFlight.insert(id).inserted else { throw AppFailure("この回線の購入処理がすでに進行中です。結果を確認してください。") }
+        defer { ordersInFlight.remove(id) }
         // There is intentionally no retry: a lost payment response is ambiguous.
-        try await execute(id) { try $0.order(sku: sku) }
+        return try await execute(id) { try $0.order(sku: sku) }
     }
     func pdf(_ id: String, billID: String) async throws -> Data {
         try await execute(id) { try $0.pdf(billID: billID) }

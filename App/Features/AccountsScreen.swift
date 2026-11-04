@@ -59,7 +59,10 @@ struct AccountsScreen: View {
             .navigationDestination(for: String.self) { id in AccountDetailScreen(accountID: id) }
             .sheet(isPresented: $adding) { LoginScreen() }
             .onChange(of: model.selectedAccountID) { _, id in
-                if let id, model.accounts.contains(where: { $0.id == id }) { path = [id] }
+                if let id, path.last != id, model.accounts.contains(where: { $0.id == id }) { path = [id] }
+            }
+            .onChange(of: path) { _, path in
+                if model.selectedAccountID != path.last { model.selectedAccountID = path.last }
             }
         }
     }

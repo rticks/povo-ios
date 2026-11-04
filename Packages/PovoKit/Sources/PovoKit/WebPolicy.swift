@@ -73,14 +73,17 @@ public enum WebPolicy {
 /// shared. Does not claim to anonymise personal information in arbitrary JSON.
 public enum DiagnosticRedactor {
     private static let sensitive: Set<String> = [
-        "auth_token", "pin_token", "session_token", "access_token", "refresh_token", "x-auth", "xauth", "authorization",
-        "otp_code", "auth_id", "device_id", "device_token", "password", "pin"
+        "authtoken", "pintoken", "sessiontoken", "accesstoken", "refreshtoken", "xauth", "authorization", "token",
+        "otpcode", "authid", "deviceid", "devicetoken", "password", "pin"
     ]
+    private static func isSensitive(_ key: String) -> Bool {
+        sensitive.contains(key.lowercased().filter { $0.isLetter || $0.isNumber })
+    }
     public static func redact(_ raw: String) -> String {
         if let data = raw.data(using: .utf8), let value = try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) {
             func clean(_ value: Any) -> Any {
                 if let dict = value as? [String: Any] {
-                    return dict.mapValuesWithKeys { key, value in sensitive.contains(key.lowercased()) ? "[REDACTED]" : clean(value) }
+                    return dict.mapValuesWithKeys { key, value in isSensitive(key) ? "[REDACTED]" : clean(value) }
                 }
                 if let array = value as? [Any] { return array.map(clean) }
                 if let text = value as? String { return scrub(text) }
@@ -93,8 +96,8 @@ public enum DiagnosticRedactor {
         return scrub(raw)
     }
     private static func scrub(_ raw: String) -> String {
-        var text = raw.replacingOccurrences(of: "(?i)(auth_token|pin_token|session_token|access_token|refresh_token|device_id|otp_code|auth_id)=([^&\\s\"<>]+)",
-                                           with: "$1=[REDACTED]", options: .regularExpression)
+        var text = raw.replacingOccurrences(of: #"(?i)((?:auth_?token|pin_?token|session_?token|access_?token|refresh_?token|device_?id|otp_?code|auth_?id)\s*["']?\s*[:=]\s*["']?)([^&\s"'<>,}]+)"#,
+                                           with: "$1[REDACTED]", options: .regularExpression)
         text = text.replacingOccurrences(of: "[A-Za-z0-9_-]{12,}\\.[A-Za-z0-9_-]{12,}\\.[A-Za-z0-9_-]{8,}",
                                          with: "[REDACTED JWT]", options: .regularExpression)
         return text
