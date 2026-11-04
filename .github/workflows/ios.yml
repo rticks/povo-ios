@@ -23,7 +23,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ios-${{ github.ref }}
+  group: ios-${{ github.ref }}-${{ inputs.runner || 'macos-latest' }}
   cancel-in-progress: true
 jobs:
   shared-tests:
