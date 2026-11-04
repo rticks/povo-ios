@@ -99,13 +99,20 @@ jobs:
             artifacts/*.json
           if-no-files-found: warn
           retention-days: 14
+      - name: Upload UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-screenshots
+          path: artifacts/screenshots/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Upload test evidence and build logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ios-test-evidence
           path: |
-            artifacts/screenshots/
             build/*.log
             build/TestResults.xcresult/
           if-no-files-found: warn
