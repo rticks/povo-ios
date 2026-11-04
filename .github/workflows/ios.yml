@@ -10,7 +10,7 @@ on:
       runner:
         description: 'Standard macOS runner (alternate pool if one is full)'
         required: true
-        default: macos-latest
+        default: macos-15-intel
         type: choice
         options:
           - macos-latest
@@ -23,7 +23,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ios-${{ github.ref }}-${{ inputs.runner || 'macos-latest' }}
+  group: ios-${{ github.ref }}-${{ inputs.runner || 'macos-15-intel' }}
   cancel-in-progress: true
 jobs:
   shared-tests:
@@ -43,7 +43,7 @@ jobs:
           swift --version
           swift test --package-path Packages/PovoKit
   build:
-    runs-on: ${{ inputs.runner || 'macos-latest' }}
+    runs-on: ${{ inputs.runner || 'macos-15-intel' }}
     timeout-minutes: 60
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/build/rust
@@ -59,7 +59,8 @@ jobs:
           xcodebuild -version
           swift --version
           rustc --version
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: rust-cache
         with:
           path: |
             ~/.cargo/registry
@@ -74,6 +75,15 @@ jobs:
         run: cargo test --locked --manifest-path vendor/povo-core/Cargo.toml -p povo-core
       - name: Build Rust device and universal simulator XCFramework
         run: bash scripts/build-native.sh
+      - name: Preserve native build cache before Xcode tests
+        if: steps.rust-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            build/rust
+          key: ${{ steps.rust-cache.outputs.cache-primary-key }}
       - name: Build and verify unsigned ARM64 IPA
         run: bash scripts/build-unsigned.sh
       - name: Run native, repository and UI tests on iPhone simulator
