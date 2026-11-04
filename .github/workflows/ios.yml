@@ -16,7 +16,19 @@ concurrency:
   group: ios-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  shared-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify fixed source and fixture snapshots
+        run: node scripts/verify-source.cjs
+      - name: Test platform-independent Swift logic immediately
+        run: |
+          swift --version
+          swift test --package-path Packages/PovoKit
   build:
+    needs: shared-tests
     runs-on: macos-15-intel
     timeout-minutes: 60
     env:

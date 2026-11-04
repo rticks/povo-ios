@@ -27,7 +27,7 @@ struct UsageMeter: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(PovoStyle.meterTrack)
                     if let fraction {
-                        Capsule().fill(PovoStyle.meter).frame(width: geometry.size.width * min(1, max(0, fraction)))
+                        Capsule().fill(PovoStyle.meter).frame(width: geometry.size.width * CGFloat(min(1, max(0, fraction))))
                     }
                 }
             }.frame(height: 6)
@@ -52,7 +52,7 @@ struct RemainingRing: View {
             ZStack {
                 Circle().stroke(PovoStyle.meterTrack, lineWidth: max(5, side * 0.055))
                 if let fraction, fraction > 0 {
-                    Circle().trim(from: 0, to: min(1, max(0, fraction)))
+                    Circle().trim(from: 0, to: CGFloat(min(1, max(0, fraction))))
                         .stroke(PovoStyle.meter, style: StrokeStyle(lineWidth: max(5, side * 0.055), lineCap: .round))
                         .rotationEffect(.degrees(-90))
                 }

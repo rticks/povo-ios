@@ -9,8 +9,8 @@ export CARGO_TARGET_DIR="$OUT/rust"
 export IPHONEOS_DEPLOYMENT_TARGET=17.0
 rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
 cargo build --locked --manifest-path "$CORE/Cargo.toml" -p povo-core
-cargo run --locked --manifest-path "$CORE/Cargo.toml" -p povo-core --bin uniffi-bindgen -- generate \
-  --library "$CARGO_TARGET_DIR/debug/libpovo_core.dylib" --language swift --out-dir "$GEN"
+(cd "$CORE" && cargo run --locked -p povo-core --bin uniffi-bindgen -- generate \
+  --library "$CARGO_TARGET_DIR/debug/libpovo_core.dylib" --language swift --out-dir "$GEN")
 test -s "$GEN/povo_core.swift"
 test -s "$GEN/povo_coreFFI.h"
 # Clang discovers this filename through SWIFT_INCLUDE_PATHS and the XCFramework headers.

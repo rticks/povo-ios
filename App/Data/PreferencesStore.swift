@@ -39,11 +39,7 @@ final class PreferencesStore: ObservableObject {
         defaults.set(data, forKey: prefix + ".anchors"); anchors = next
     }
     func markNotified(_ id: String, date: String) throws {
-        guard var anchor = anchors[id] else { return }
-        anchor.notifiedFor = date
-        try setAnchor(anchor, for: id)
-        // setAnchor intentionally preserves an existing marker for normal edits;
-        // notifications explicitly replace that marker here.
+        guard anchors[id] != nil else { return }
         var next = anchors; next[id]?.notifiedFor = date
         defaults.set(try JSONEncoder().encode(next), forKey: prefix + ".anchors"); anchors = next
     }

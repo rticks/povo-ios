@@ -133,5 +133,8 @@ final class WebPolicyTests: XCTestCase {
         XCTAssertFalse(redacted.contains("top-secret")); XCTAssertFalse(redacted.contains("secret-device"))
         XCTAssertFalse(redacted.contains("auth_token=secret"))
         XCTAssertTrue(redacted.contains("fake@example.invalid")) // no false anonymisation claim
+        let camel = DiagnosticRedactor.redact(#"{"authToken":"camel-secret","xAuth":"header-secret"}"#)
+        XCTAssertFalse(camel.contains("camel-secret")); XCTAssertFalse(camel.contains("header-secret"))
+        XCTAssertFalse(DiagnosticRedactor.redact("failure authToken=opaque-secret").contains("opaque-secret"))
     }
 }
