@@ -1,0 +1,83 @@
+{
+  "verified_at": "2026-11-05T00:20:05.679283+00:00",
+  "repository": "rticks/povo-ios",
+  "private": true,
+  "run_id": 41937141393,
+  "run_url": "https://github.com/rticks/povo-ios/actions/runs/41937141393",
+  "source_commit": "9c472cc9828a979176cfefeb8ee4f8961208c76f",
+  "conclusion": "success",
+  "ipa": {
+    "file": "povo-ios-0.1.0-unsigned.ipa",
+    "bytes": 2728570,
+    "sha256": "d2131f9cf6e5ce3c03e93a7511645634a982449d6733a430cbbc047383f87f4c",
+    "bundle_id": "jp.povo.manager.ios",
+    "version": "0.1.0",
+    "build": "13",
+    "architecture": "arm64",
+    "signed": false,
+    "widget_extension": "jp.povo.manager.ios.widgets"
+  },
+  "binaries": [
+    {
+      "bundle_id": "jp.povo.manager.ios",
+      "minimum_ios": "17.0",
+      "sdk": "iphoneos18.5",
+      "macho_platform": "iOS device",
+      "code_signature": false
+    },
+    {
+      "bundle_id": "jp.povo.manager.ios.widgets",
+      "minimum_ios": "17.0",
+      "sdk": "iphoneos18.5",
+      "macho_platform": "iOS device",
+      "code_signature": false
+    }
+  ],
+  "toolchain": {
+    "xcode": "16.4",
+    "swift_macos": "6.1.2",
+    "rust": "1.99.1",
+    "runner": "macos-15-intel",
+    "simulator_device": "iPhone 16 Pro"
+  },
+  "tests": {
+    "povo_kit_linux": {
+      "passed": 32,
+      "failed": 0
+    },
+    "povo_kit_macos": {
+      "passed": 32,
+      "failed": 0
+    },
+    "rust_core": {
+      "passed": 27,
+      "failed": 0
+    },
+    "ios_native_repository_keychain": {
+      "passed": 13,
+      "failed": 0
+    },
+    "ios_ui": {
+      "passed": 8,
+      "failed": 0
+    },
+    "distinct_test_cases": 80
+  },
+  "screenshots": {
+    "exported": 12,
+    "visually_reviewed": [
+      "01-accounts-light",
+      "02-detail-light",
+      "04-login",
+      "05-catalogue",
+      "07-widget-preview",
+      "09-detail-dark",
+      "11-large-text",
+      "12-suspension-editor"
+    ],
+    "artifact": "ios-screenshots"
+  },
+  "distribution_signing": "unsigned, verified by absence of Mach-O LC_CODE_SIGNATURE and provisioning profiles",
+  "simulator_signing": "ad-hoc with isolated CI-only entitlements; no Apple account or certificate",
+  "live_account_validation": "not performed; no OTP sent, real purchase, or contract change during testing"
+}

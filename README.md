@@ -28,6 +28,7 @@
 ### OSによる差（重要）
 
 - **15分ごとの実行は保証できません。** `BGAppRefreshTaskRequest`に最短15分後を希望しますが、実行はiOSが決めます。アプリ起動/手動更新も用意しています。請求・購入履歴は自動更新時に55分間引きます。
+- Android Keystoreの認証情報をiOSへ取り出す機能はありません。iOS版では各アカウントにあらためてOTPログインしてください。
 - **iOSアプリは無署名IPAを自分でインストールできません。** 外部ツールで再署名・インストールしてください。更新機能もこの制約を迂回しません。
 - **ウィジェットはApp Groupの権限が必要です。** アプリ本体と`PovoWidgets.appex`の両方を、同一のApp Groupを許可したプロファイルで再署名してください。対応しない無料署名環境ではアプリ単体のみ動作します。トークン・端末ID・誕生日・請求情報は共有コンテナに置きません。
 - 購入後の3DSリターンURLだけで「決済成功」とは断定しません。購入履歴と注文番号が照合できない場合は**未確認**と表示します。通信失敗時にも勝手に再購入しません。
@@ -40,7 +41,7 @@ GitHub Actionsは**非公開リポジトリ**に保存する運用です。macOS
 ```bash
 # GitHubに認証済みで実行
 # workflow_dispatch、mainへのpush、PRでビルド
-gh workflow run ios.yml -R rticks/povo-ios -f version=0.1.0
+gh workflow run ios.yml -R rticks/povo-ios -f version=0.1.0 -f runner=macos-15-intel
 gh run list -R rticks/povo-ios --workflow ios.yml --limit 5
 # 表示された run-id に置き換える
 gh run watch <run-id> -R rticks/povo-ios --exit-status
@@ -52,9 +53,24 @@ gh run download <run-id> -R rticks/povo-ios -n povo-ios-unsigned -D artifacts/<r
 - `povo-ios-0.1.0-unsigned.ipa` — 実機用ARM64、WidgetKit拡張込み
 - `*.ipa.sha256` — SHA-256
 - `*.json` — Bundle ID/版/アーキテクチャ/無署名検証結果
-- `ios-test-evidence` artifact — XCTest結果、UIスクリーンショット、ビルドログ
+- `ios-screenshots` artifact — UIテストで取得した画面画像
+- `ios-test-evidence` artifact — XCTest結果とビルドログ
 
 ビルドではSwiftの共通テスト、Rustテスト、実機用ビルド、Simulator上のFFI/リポジトリ/UIテストを実行します。テストは匿名化済みフィクスチャまたは合成データを使用し、OTP送信・実購入・実契約変更はしません。
+
+Simulatorのテスト実行だけは、Keychainの権限検査に必要なアドホック署名とCI専用の仮entitlementsを使用します。Appleアカウント・証明書は不要です。配布用のRelease IPAは別の設定で署名を無効化し、署名が残っていないことをMach-Oのロードコマンドまで検査します。
+
+
+## 検証済みビルド
+
+- [成功したGitHub Actions実行](https://github.com/rticks/povo-ios/actions/runs/41937141393)（実装コミット `9c472cc9828a979176cfefeb8ee4f8961208c76f`）
+- バージョン **0.1.0 / build 13**、iOS 17以降、実機ARM64、WidgetKit拡張込みの**無署名IPA**。
+- 共通Swift 32件（LinuxとmacOSの両方）、Rust 27件、iOSネイティブ/Keychain/リポジトリ13件、UI 8件が全件合格。
+- 画面画像12枚を出力し、主要画面のライト/ダーク表示、残量メーター、ウィジェットのプレビュー等を目視確認。
+- 詳細・SHA-256・署名検査結果：[docs/BUILD-VERIFICATION.json](docs/BUILD-VERIFICATION.json)。
+- この作業環境の最終成果物：`artifacts/unsigned/povo-ios-0.1.0-unsigned.ipa`（Git管理外）。
+
+実アカウントを使った検証を行ったという意味ではありません。以下の「検証の限界」も確認してください。
 
 ## macOSでローカルビルド
 
