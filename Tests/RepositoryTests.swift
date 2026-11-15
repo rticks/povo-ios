@@ -28,6 +28,37 @@ final class RepositoryTests: XCTestCase {
         XCTAssertEqual(try storage.load(), values)
         try storage.save([]); XCTAssertTrue(try storage.load().isEmpty)
     }
+    func testConcurrentKeychainTransactionsAcrossInstancesPreserveBothUpdates() async throws {
+        let service = "jp.povo.manager.tests.\(UUID().uuidString)"
+        let first = KeychainSessionStorage(service: service)
+        let second = KeychainSessionStorage(service: service)
+        let original = [session("one"), session("two")]
+        try first.save(original)
+        defer { try? first.save([]) }
+
+        let successful = await withTaskGroup(of: Bool.self) { group in
+            for (storage, accountID) in [(first, "one"), (second, "two")] {
+                group.addTask {
+                    do {
+                        try storage.modify { sessions in
+                            Thread.sleep(forTimeInterval: 0.05)
+                            guard let index = sessions.firstIndex(where: { $0.accountID == accountID }) else { return }
+                            sessions[index].authToken = "renewed-\(accountID)"
+                        }
+                        return true
+                    } catch { return false }
+                }
+            }
+            var results: [Bool] = []
+            for await result in group { results.append(result) }
+            return results
+        }
+
+        XCTAssertTrue(successful.allSatisfy { $0 })
+        let saved = try second.load()
+        XCTAssertEqual(saved.first { $0.accountID == "one" }?.authToken, "renewed-one")
+        XCTAssertEqual(saved.first { $0.accountID == "two" }?.authToken, "renewed-two")
+    }
     func testParallelRenewalsDoNotLoseAnotherAccountsToken() async throws {
         let original = [session("one", expired: true), session("two", expired: true)]
         let storage = MemorySessionStorage(original)
@@ -52,6 +83,24 @@ final class RepositoryTests: XCTestCase {
         XCTAssertTrue(outcomes.allSatisfy { $0.status == .ok })
         XCTAssertLessThanOrEqual(services.maximumActive, 3)
         XCTAssertGreaterThan(services.maximumActive, 0)
+    }
+    func testParallelRepositoryInstancesDoNotLoseRenewedTokens() async throws {
+        let original = [session("one", expired: true), session("two", expired: true)]
+        let storage = MemorySessionStorage(original)
+        let firstServices = FixtureServices()
+        let secondServices = FixtureServices()
+        let first = try AccountRepository(sessions: storage, cache: MemoryCacheStorage(), factory: firstServices.factory)
+        let second = try AccountRepository(sessions: storage, cache: MemoryCacheStorage(), factory: secondServices.factory)
+
+        async let firstOutcomes = first.refreshAll()
+        async let secondOutcomes = second.refreshAll()
+        _ = await [firstOutcomes, secondOutcomes]
+
+        let saved = try storage.load()
+        for id in ["one", "two"] {
+            XCTAssertNotEqual(saved.first { $0.accountID == id }?.authToken, original.first { $0.accountID == id }?.authToken)
+            XCTAssertEqual(saved.first { $0.accountID == id }?.sin, "line-\(id)")
+        }
     }
     func testConcurrentRefreshOfSameAccountIsCoalesced() async throws {
         let services = FixtureServices()
