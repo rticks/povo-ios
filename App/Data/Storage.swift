@@ -5,6 +5,8 @@ import PovoKit
 protocol SessionStorage: Sendable {
     func load() throws -> [PovoSession]
     func save(_ sessions: [PovoSession]) throws
+    /// Serializes the full read-transform-write operation across storage instances.
+    func modify(_ update: (inout [PovoSession]) throws -> Void) throws
 }
 protocol CacheStorage: Sendable {
     func load() throws -> AccountCache
@@ -21,6 +23,21 @@ final class KeychainSessionStorage: SessionStorage, @unchecked Sendable {
     }
     func load() throws -> [PovoSession] {
         Self.lock.lock(); defer { Self.lock.unlock() }
+        return try loadUnlocked()
+    }
+    func save(_ sessions: [PovoSession]) throws {
+        Self.lock.lock(); defer { Self.lock.unlock() }
+        try saveUnlocked(sessions)
+    }
+    func modify(_ update: (inout [PovoSession]) throws -> Void) throws {
+        Self.lock.lock(); defer { Self.lock.unlock() }
+        var sessions = try loadUnlocked()
+        let original = sessions
+        try update(&sessions)
+        guard sessions != original else { return }
+        try saveUnlocked(sessions)
+    }
+    private func loadUnlocked() throws -> [PovoSession] {
         var query = query
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -31,8 +48,7 @@ final class KeychainSessionStorage: SessionStorage, @unchecked Sendable {
         do { return try JSONDecoder().decode([PovoSession].self, from: data) }
         catch { throw AppFailure("保存された認証情報を読み取れません。自動では削除しません。") }
     }
-    func save(_ sessions: [PovoSession]) throws {
-        Self.lock.lock(); defer { Self.lock.unlock() }
+    private func saveUnlocked(_ sessions: [PovoSession]) throws {
         if sessions.isEmpty {
             let status = SecItemDelete(query as CFDictionary)
             guard status == errSecSuccess || status == errSecItemNotFound else { throw failure(status) }
@@ -85,6 +101,14 @@ final class MemorySessionStorage: SessionStorage, @unchecked Sendable {
     init(_ sessions: [PovoSession] = []) { self.sessions = sessions }
     func load() throws -> [PovoSession] { lock.lock(); defer { lock.unlock() }; return sessions }
     func save(_ sessions: [PovoSession]) throws { lock.lock(); defer { lock.unlock() }; self.sessions = sessions }
+    func modify(_ update: (inout [PovoSession]) throws -> Void) throws {
+        lock.lock(); defer { lock.unlock() }
+        let original = sessions
+        var changed = original
+        try update(&changed)
+        guard changed != original else { return }
+        sessions = changed
+    }
 }
 final class MemoryCacheStorage: CacheStorage, @unchecked Sendable {
     private let lock = NSLock()

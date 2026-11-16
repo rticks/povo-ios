@@ -64,9 +64,10 @@ actor AccountRepository {
         let session = PovoSession(accountID: id, deviceID: deviceID, authToken: token, sin: profile.sin,
                                   email: profile.email ?? email, phone: profile.phone ?? phone,
                                   externalID: externalID, label: profile.phone ?? profile.email)
-        var saved = try sessions.load()
-        saved.removeAll { $0.accountID == id }; saved.append(session)
-        try sessions.save(saved)
+        try sessions.modify { saved in
+            saved.removeAll { $0.accountID == id }
+            saved.append(session)
+        }
         workers.removeValue(forKey: id)
         inFlight.removeValue(forKey: id)?.task.cancel()
         var record = cache.accounts.first(where: { $0.id == id }) ?? AccountRecord(id: id, sortOrder: cache.accounts.count)
@@ -76,8 +77,7 @@ actor AccountRepository {
     }
 
     func remove(_ id: String) throws {
-        var saved = try sessions.load(); saved.removeAll { $0.accountID == id }
-        try sessions.save(saved) // credentials first; a late refresh cannot resurrect them
+        try sessions.modify { saved in saved.removeAll { $0.accountID == id } }
         workers.removeValue(forKey: id)
         inFlight.removeValue(forKey: id)?.task.cancel()
         cache.accounts.removeAll { $0.id == id }; try persistCache()
@@ -186,13 +186,16 @@ actor AccountRepository {
         return (current.authToken, current.deviceID, current.generation)
     }
     func adoptWebToken(_ id: String, token: String, generation: UUID) throws {
-        var saved = try sessions.load()
-        guard let index = saved.firstIndex(where: { $0.accountID == id && $0.generation == generation }),
-              JWT.externalID(token) == (saved[index].externalID ?? JWT.externalID(saved[index].authToken)),
-              JWT.expiresAt(token) != nil else { throw AppFailure("Web画面の認証情報が現在のアカウントと一致しません") }
-        guard saved[index].authToken != token else { return }
-        saved[index].authToken = token; saved[index].generation = UUID()
-        try sessions.save(saved); workers.removeValue(forKey: id)
+        var rotated = false
+        try sessions.modify { saved in
+            guard let index = saved.firstIndex(where: { $0.accountID == id && $0.generation == generation }),
+                  JWT.externalID(token) == (saved[index].externalID ?? JWT.externalID(saved[index].authToken)),
+                  JWT.expiresAt(token) != nil else { throw AppFailure("Web画面の認証情報が現在のアカウントと一致しません") }
+            guard saved[index].authToken != token else { return }
+            saved[index].authToken = token; saved[index].generation = UUID()
+            rotated = true
+        }
+        if rotated { workers.removeValue(forKey: id) }
     }
     #if DEBUG
     func diagnostic(_ id: String, path: String, prefix: String?, version: String, body: String?) async throws -> String {
@@ -227,23 +230,25 @@ actor AccountRepository {
         return created
     }
     private func commit<T>(_ reply: WorkerReply<T>) throws -> Bool {
-        var saved = try sessions.load()
-        guard let index = saved.firstIndex(where: { $0.accountID == reply.session.accountID }),
-              saved[index].deviceID == reply.session.deviceID, saved[index].generation == reply.session.generation,
-              saved[index].authToken == reply.startingToken || saved[index].authToken == reply.session.authToken else { return false }
-        saved[index].authToken = reply.session.authToken
-        saved[index].sin = reply.session.sin ?? saved[index].sin
-        try sessions.save(saved)
-        return true
+        var committed = false
+        try sessions.modify { saved in
+            guard let index = saved.firstIndex(where: { $0.accountID == reply.session.accountID }),
+                  saved[index].deviceID == reply.session.deviceID, saved[index].generation == reply.session.generation,
+                  saved[index].authToken == reply.startingToken || saved[index].authToken == reply.session.authToken else { return }
+            saved[index].authToken = reply.session.authToken
+            saved[index].sin = reply.session.sin ?? saved[index].sin
+            committed = true
+        }
+        return committed
     }
     private func updateMetadata(id: String, generation: UUID, profile: AccountProfile) throws {
-        var saved = try sessions.load()
-        guard let index = saved.firstIndex(where: { $0.accountID == id && $0.generation == generation }) else { return }
-        saved[index].sin = profile.sin ?? saved[index].sin
-        saved[index].email = profile.email ?? saved[index].email
-        saved[index].phone = profile.phone ?? saved[index].phone
-        saved[index].label = profile.phone ?? profile.email ?? saved[index].label
-        try sessions.save(saved)
+        try sessions.modify { saved in
+            guard let index = saved.firstIndex(where: { $0.accountID == id && $0.generation == generation }) else { return }
+            saved[index].sin = profile.sin ?? saved[index].sin
+            saved[index].email = profile.email ?? saved[index].email
+            saved[index].phone = profile.phone ?? saved[index].phone
+            saved[index].label = profile.phone ?? profile.email ?? saved[index].label
+        }
     }
     private func put(_ record: AccountRecord) {
         cache.accounts.removeAll { $0.id == record.id }; cache.accounts.append(record)
